@@ -1,0 +1,68 @@
+from scrapy.crawler import CrawlerProcess
+import scrapy
+
+from io import StringIO
+import csv
+
+COLLECTED_DATA = StringIO()
+
+class WellDataspider(scrapy.Spider):
+
+    name = "welldata"
+
+    def start_requests(self):
+        urls = [
+            'https://wwwapps.emnrd.state.nm.us/ocd/ocdpermitting/Reporting/Activity/WeeklyActivityReport.aspx?StartDate=8/4/2019.',
+        ]
+
+        for url in urls:
+            yield scrapy.Request(url=url, callback=self.parse)
+        insertToDb()
+
+    def parse(self, response):
+        tables = response.css('table.Content')
+        csvwriter = csv.writer(COLLECTED_DATA)
+        for table in tables:
+            for row in table.css('tr'):
+                row = [td.get().strip() for td in row.css('td::text')]
+                # if any of the cells contain any data, then let's write that
+                # out to the csv. sometimes the input contains empty data, so
+                # let's ignore that here.
+                if any(row):
+                    csvwriter.writerow(row)
+
+
+def insertToDb():
+   # csv.reader('C:\Users\alira')
+   
+    with open('C:\\Users\\alira\\welldata.csv') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        line_count = 0
+        for row in csv_reader:
+            if line_count == 0:
+                print(f'Column names are {", ".join(row)}')
+                line_count += 1
+            else:
+                print(f'\t api is {row[0]} ogrid: {row[1]} ,  {row[2]}.')
+                line_count += 1
+        print(f'Processed {line_count} lines.')
+# function crawling well data website, return list with each element being comma
+# separate string representing each row
+def collect_data():
+    global COLLECTED_DATA
+    COLLECTED_DATA = StringIO()
+
+    c = CrawlerProcess({'LOG_ENABLED': False})
+    c.crawl(WellDataspider)
+    c.start()
+    c.join()
+
+    COLLECTED_DATA.seek(0)
+    return COLLECTED_DATA.read().splitlines()
+
+
+# python script used to test and make sure our function is working correctly
+if __name__ == '__main__':
+    import pprint
+    pprint.pprint(collect_data())
+    
